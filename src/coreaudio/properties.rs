@@ -19,11 +19,11 @@ pub trait Scope {
 }
 
 pub trait GettablePropertyType: Sized {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError>;
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError>;
 }
 
 pub trait SettablePropertyType: Sized {
-    fn set(
+    unsafe fn set(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         value: &Self,
@@ -31,7 +31,7 @@ pub trait SettablePropertyType: Sized {
 }
 
 pub trait TranslatablePropertyType: Sized {
-    fn translate(
+    unsafe fn translate(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         value: &mut Self,
@@ -39,7 +39,7 @@ pub trait TranslatablePropertyType: Sized {
 }
 
 pub trait QualifiedGettablePropertyType<TInput>: Sized {
-    fn get_qualified(
+    unsafe fn get_qualified(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         qualifier: &TInput,
@@ -52,7 +52,7 @@ pub trait Selector {
     fn selector() -> AudioObjectPropertySelector;
 }
 
-pub fn get<El: Element, Sc: Scope, Se: Selector>(
+pub unsafe fn get<El: Element, Sc: Scope, Se: Selector>(
     _element: El,
     _scope: Sc,
     _selector: Se,
@@ -71,7 +71,7 @@ where
     )
 }
 
-pub fn get_qualified<El: Element, Sc: Scope, Se: Selector, TInput>(
+pub unsafe fn get_qualified<El: Element, Sc: Scope, Se: Selector, TInput>(
     _element: El,
     _scope: Sc,
     _selector: Se,
@@ -92,7 +92,7 @@ where
     )
 }
 
-pub fn set<El: Element, Sc: Scope, Se: Selector>(
+pub unsafe fn set<El: Element, Sc: Scope, Se: Selector>(
     _element: El,
     _scope: Sc,
     _selector: Se,
@@ -113,7 +113,7 @@ where
     )
 }
 
-pub fn translate<El: Element, Sc: Scope, Se: Selector>(
+pub unsafe fn translate<El: Element, Sc: Scope, Se: Selector>(
     _element: El,
     _scope: Sc,
     _selector: Se,
@@ -349,249 +349,227 @@ pub mod selector {
 }
 
 impl GettablePropertyType for f64 {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
-        unsafe {
-            let mut value = mem::MaybeUninit::<f64>::uninit();
-            let mut size = mem::size_of::<Self>() as u32;
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
+        let mut value = mem::MaybeUninit::<f64>::uninit();
+        let mut size = mem::size_of::<Self>() as u32;
 
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                &mut size,
-                value.as_mut_ptr() as *mut c_void,
-            ))?;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            &mut size,
+            value.as_mut_ptr() as *mut c_void,
+        ))?;
 
-            Ok(value.assume_init())
-        }
+        Ok(value.assume_init())
     }
 }
 
 impl SettablePropertyType for f64 {
-    fn set(
+    unsafe fn set(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         value: &Self,
     ) -> Result<(), CFError> {
-        unsafe {
-            let size = mem::size_of::<Self>() as u32;
+        let size = mem::size_of::<Self>() as u32;
 
-            check_os_status(AudioObjectSetPropertyData(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                size,
-                value as *const Self as *const c_void,
-            ))
-        }
+        check_os_status(AudioObjectSetPropertyData(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            size,
+            value as *const Self as *const c_void,
+        ))
     }
 }
 
 impl GettablePropertyType for Vec<CADevice> {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
-        unsafe {
-            let mut devices_size = 0;
-            check_os_status(AudioObjectGetPropertyDataSize(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                &mut devices_size,
-            ))?;
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
+        let mut devices_size = 0;
+        check_os_status(AudioObjectGetPropertyDataSize(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            &mut devices_size,
+        ))?;
 
-            let mut device_ids =
-                vec![CADevice::uninit(); devices_size as usize / mem::size_of::<CADevice>()];
+        let mut device_ids =
+            vec![CADevice::uninit(); devices_size as usize / mem::size_of::<CADevice>()];
 
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                &mut devices_size,
-                device_ids.as_mut_ptr() as *mut _,
-            ))?;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            &mut devices_size,
+            device_ids.as_mut_ptr() as *mut _,
+        ))?;
 
-            Ok(device_ids)
-        }
+        Ok(device_ids)
     }
 }
 
 impl GettablePropertyType for CADevice {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
-        unsafe {
-            let mut device_id = mem::MaybeUninit::<AudioDeviceID>::uninit();
-            let mut size = mem::size_of::<AudioDeviceID>() as u32;
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                &mut size,
-                device_id.as_mut_ptr() as *mut c_void,
-            ))?;
-            Ok(CADevice(device_id.assume_init()))
-        }
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
+        let mut device_id = mem::MaybeUninit::<AudioDeviceID>::uninit();
+        let mut size = mem::size_of::<AudioDeviceID>() as u32;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            &mut size,
+            device_id.as_mut_ptr() as *mut c_void,
+        ))?;
+        Ok(CADevice(device_id.assume_init()))
     }
 }
 
 impl TranslatablePropertyType for CADevice {
-    fn translate(
+    unsafe fn translate(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         value: &mut Self,
     ) -> Result<(), CFError> {
-        unsafe {
-            let mut size = mem::size_of::<AudioDeviceID>() as u32;
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                &mut size,
-                value as *mut Self as *mut c_void,
-            ))
-        }
+        let mut size = mem::size_of::<AudioDeviceID>() as u32;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            &mut size,
+            value as *mut Self as *mut c_void,
+        ))
     }
 }
 
 impl QualifiedGettablePropertyType<CFDictionary> for CADevice {
-    fn get_qualified(
+    unsafe fn get_qualified(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         qualifier: &CFDictionary,
     ) -> Result<Self, CFError> {
         use coreaudio_sys::CFDictionaryRef;
 
-        unsafe {
-            let aggregate_dict_ptr = qualifier.as_void_ptr();
-            let mut device_id = mem::MaybeUninit::<AudioDeviceID>::uninit();
+        let aggregate_dict_ptr = qualifier.as_void_ptr();
+        let mut device_id = mem::MaybeUninit::<AudioDeviceID>::uninit();
 
-            let mut size = mem::size_of::<AudioDeviceID>() as u32;
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                std::mem::size_of::<CFDictionaryRef>() as u32,
-                &aggregate_dict_ptr as *const _ as *mut c_void,
-                &mut size,
-                device_id.as_mut_ptr() as *mut c_void,
-            ))?;
+        let mut size = mem::size_of::<AudioDeviceID>() as u32;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            std::mem::size_of::<CFDictionaryRef>() as u32,
+            &aggregate_dict_ptr as *const _ as *mut c_void,
+            &mut size,
+            device_id.as_mut_ptr() as *mut c_void,
+        ))?;
 
-            Ok(CADevice(device_id.assume_init()))
-        }
+        Ok(CADevice(device_id.assume_init()))
     }
 }
 
 impl GettablePropertyType for CFArray {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
         use coreaudio_sys::CFArrayRef;
 
-        unsafe {
-            let mut array = mem::MaybeUninit::<CFArrayRef>::uninit();
-            let mut size = mem::size_of::<CFArrayRef>() as u32;
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                ptr::null(),
-                &mut size,
-                array.as_mut_ptr() as *mut c_void,
-            ))?;
-            Ok(CFArray::new_retained(array.assume_init()))
-        }
+        let mut array = mem::MaybeUninit::<CFArrayRef>::uninit();
+        let mut size = mem::size_of::<CFArrayRef>() as u32;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            ptr::null(),
+            &mut size,
+            array.as_mut_ptr() as *mut c_void,
+        ))?;
+        Ok(CFArray::new_retained(array.assume_init()))
     }
 }
 
 impl SettablePropertyType for CFArray {
-    fn set(
+    unsafe fn set(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         value: &Self,
     ) -> Result<(), CFError> {
-        unsafe {
-            check_os_status(AudioObjectSetPropertyData(
-                obj,
-                &addr,
-                0,
-                std::ptr::null(),
-                std::mem::size_of::<Self>() as u32,
-                (&value.as_void_ptr() as *const _) as *mut c_void,
-            ))
-        }
+        check_os_status(AudioObjectSetPropertyData(
+            obj,
+            &addr,
+            0,
+            std::ptr::null(),
+            std::mem::size_of::<Self>() as u32,
+            (&value.as_void_ptr() as *const _) as *mut c_void,
+        ))
     }
 }
 
 impl TranslatablePropertyType for AudioValueTranslation {
-    fn translate(
+    unsafe fn translate(
         obj: AudioObjectID,
         addr: AudioObjectPropertyAddress,
         value: &mut Self,
     ) -> Result<(), CFError> {
         let mut size = std::mem::size_of::<AudioValueTranslation>() as u32;
 
-        unsafe {
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                value as *mut AudioValueTranslation as *mut c_void,
-            ))?;
-        }
-        Ok(())
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            std::ptr::null(),
+            &mut size,
+            value as *mut AudioValueTranslation as *mut c_void,
+        ))
     }
 }
 
 impl GettablePropertyType for CFString {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
         use coreaudio_sys::CFStringRef;
-        unsafe {
-            let mut value = mem::MaybeUninit::<CFStringRef>::uninit();
-            let mut size = mem::size_of::<CFStringRef>() as u32;
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                value.as_mut_ptr() as *mut c_void,
-            ))?;
-            Ok(CFString::new_retained(value.assume_init()))
-        }
+
+        let mut value = mem::MaybeUninit::<CFStringRef>::uninit();
+        let mut size = mem::size_of::<CFStringRef>() as u32;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            std::ptr::null(),
+            &mut size,
+            value.as_mut_ptr() as *mut c_void,
+        ))?;
+        Ok(CFString::new_retained(value.assume_init()))
     }
 }
 
 impl GettablePropertyType for Box<coreaudio_sys::AudioBufferList> {
-    fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
+    unsafe fn get(obj: AudioObjectID, addr: AudioObjectPropertyAddress) -> Result<Self, CFError> {
         use coreaudio_sys::AudioBufferList;
-        unsafe {
-            let mut size = 0;
-            check_os_status(AudioObjectGetPropertyDataSize(
-                obj,
-                &addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-            ))?;
+        let mut size = 0;
+        check_os_status(AudioObjectGetPropertyDataSize(
+            obj,
+            &addr,
+            0,
+            std::ptr::null(),
+            &mut size,
+        ))?;
 
-            let layout = alloc::Layout::from_size_align_unchecked(
-                (size as usize).max(mem::size_of::<AudioBufferList>()),
-                mem::align_of::<AudioBufferList>(),
-            );
-            let buffer = alloc::alloc(layout);
+        let layout = alloc::Layout::from_size_align_unchecked(
+            (size as usize).max(mem::size_of::<AudioBufferList>()),
+            mem::align_of::<AudioBufferList>(),
+        );
+        let buffer = alloc::alloc(layout);
 
-            check_os_status(AudioObjectGetPropertyData(
-                obj,
-                &addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                buffer as *mut c_void,
-            ))?;
+        check_os_status(AudioObjectGetPropertyData(
+            obj,
+            &addr,
+            0,
+            std::ptr::null(),
+            &mut size,
+            buffer as *mut c_void,
+        ))?;
 
-            Ok(Box::from_raw(buffer as *mut AudioBufferList))
-        }
+        Ok(Box::from_raw(buffer as *mut AudioBufferList))
     }
 }

@@ -25,12 +25,14 @@ impl CADevice {
     }
 
     pub fn uid(&self) -> Result<CFString, CFError> {
-        properties::get(
-            element::Master,
-            scope::Output,
-            selector::DevicePropertyDeviceUID,
-            self.0,
-        )
+        unsafe {
+            properties::get(
+                element::Master,
+                scope::Output,
+                selector::DevicePropertyDeviceUID,
+                self.0,
+            )
+        }
     }
 }
 
@@ -47,61 +49,73 @@ impl fmt::Debug for CADevice {
 
 impl Device<CABackend> for CADevice {
     fn num_inputs(&self) -> Result<usize, CFError> {
-        let inputs = properties::get(
-            element::Master,
-            scope::Input,
-            selector::DevicePropertyStreamConfiguration,
-            self.0,
-        )?;
+        let inputs = unsafe {
+            properties::get(
+                element::Master,
+                scope::Input,
+                selector::DevicePropertyStreamConfiguration,
+                self.0,
+            )?
+        };
         Ok(inputs.mNumberBuffers as usize)
     }
 
     fn num_outputs(&self) -> Result<usize, CFError> {
-        let outputs = properties::get(
-            element::Master,
-            scope::Output,
-            selector::DevicePropertyStreamConfiguration,
-            self.0,
-        )?;
+        let outputs = unsafe {
+            properties::get(
+                element::Master,
+                scope::Output,
+                selector::DevicePropertyStreamConfiguration,
+                self.0,
+            )?
+        };
         Ok(outputs.mNumberBuffers as usize)
     }
 
     fn name(&self) -> Result<String, CFError> {
-        let cfstr = properties::get(
-            element::Master,
-            scope::Wildcard,
-            selector::ObjectPropertyName,
-            self.0,
-        )?;
+        let cfstr = unsafe {
+            properties::get(
+                element::Master,
+                scope::Wildcard,
+                selector::ObjectPropertyName,
+                self.0,
+            )?
+        };
 
         Ok(cfstr.to_string())
     }
 
     fn set_nominal_sample_rate(&mut self, sample_rate: f64) -> Result<(), CFError> {
-        properties::set(
-            element::Master,
-            scope::Wildcard,
-            selector::DevicePropertyNominalSampleRate,
-            self.0,
-            &sample_rate,
-        )
+        unsafe {
+            properties::set(
+                element::Master,
+                scope::Wildcard,
+                selector::DevicePropertyNominalSampleRate,
+                self.0,
+                &sample_rate,
+            )
+        }
     }
 
     fn nominal_sample_rate(&self) -> Result<f64, CFError> {
-        properties::get(
-            element::Master,
-            scope::Wildcard,
-            selector::DevicePropertyNominalSampleRate,
-            self.0,
-        )
+        unsafe {
+            properties::get(
+                element::Master,
+                scope::Wildcard,
+                selector::DevicePropertyNominalSampleRate,
+                self.0,
+            )
+        }
     }
 
     fn actual_sample_rate(&self) -> Result<f64, CFError> {
-        properties::get(
-            element::Master,
-            scope::Wildcard,
-            selector::DevicePropertyActualSampleRate,
-            self.0,
-        )
+        unsafe {
+            properties::get(
+                element::Master,
+                scope::Wildcard,
+                selector::DevicePropertyActualSampleRate,
+                self.0,
+            )
+        }
     }
 }

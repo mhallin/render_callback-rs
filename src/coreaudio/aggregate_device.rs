@@ -77,13 +77,15 @@ impl AggregateDevice {
             array
         };
 
-        properties::set(
-            element::Master,
-            scope::Global,
-            selector::AggregateDevicePropertyFullSubDeviceList,
-            self.device.id(),
-            &sub_device_array.clone_immutable(),
-        )
+        unsafe {
+            properties::set(
+                element::Master,
+                scope::Global,
+                selector::AggregateDevicePropertyFullSubDeviceList,
+                self.device.id(),
+                &sub_device_array.clone_immutable(),
+            )
+        }
     }
 }
 
@@ -99,27 +101,31 @@ fn get_audio_plugin_id() -> Result<AudioObjectID, CFError> {
         mOutputDataSize: std::mem::size_of::<AudioObjectID>() as u32,
     };
 
-    properties::translate(
-        element::Master,
-        scope::Global,
-        selector::HardwarePropertyPlugInForBundleID,
-        kAudioObjectSystemObject,
-        &mut translation,
-    )?;
+    unsafe {
+        properties::translate(
+            element::Master,
+            scope::Global,
+            selector::HardwarePropertyPlugInForBundleID,
+            kAudioObjectSystemObject,
+            &mut translation,
+        )?;
+    }
 
     unsafe { Ok(object_id.assume_init()) }
 }
 
 impl Drop for AggregateDevice {
     fn drop(&mut self) {
-        properties::translate(
-            element::Master,
-            scope::Global,
-            selector::PlugInDestroyAggregateDevice,
-            self.plugin_id,
-            &mut self.device,
-        )
-        .expect("Could not destroy aggregate device");
+        unsafe {
+            properties::translate(
+                element::Master,
+                scope::Global,
+                selector::PlugInDestroyAggregateDevice,
+                self.plugin_id,
+                &mut self.device,
+            )
+            .expect("Could not destroy aggregate device");
+        }
     }
 }
 
@@ -163,11 +169,13 @@ fn create_aggregate_device(audio_plugin_id: AudioObjectID) -> Result<CADevice, C
         CFNumber::new(1).as_void_ptr(),
     );
 
-    properties::get_qualified(
-        element::Master,
-        scope::Global,
-        selector::PlugInCreateAggregateDevice,
-        &aggregate_dict.clone_immutable(),
-        audio_plugin_id,
-    )
+    unsafe {
+        properties::get_qualified(
+            element::Master,
+            scope::Global,
+            selector::PlugInCreateAggregateDevice,
+            &aggregate_dict.clone_immutable(),
+            audio_plugin_id,
+        )
+    }
 }

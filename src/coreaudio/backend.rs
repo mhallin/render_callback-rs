@@ -20,30 +20,36 @@ impl Backend for CABackend {
     }
 
     fn all_devices(&self) -> Result<Vec<CADevice>, CFError> {
-        properties::get(
-            element::Master,
-            scope::Wildcard,
-            selector::HardwarePropertyDevices,
-            kAudioObjectSystemObject,
-        )
+        unsafe {
+            properties::get(
+                element::Master,
+                scope::Wildcard,
+                selector::HardwarePropertyDevices,
+                kAudioObjectSystemObject,
+            )
+        }
     }
 
     fn default_input_device(&self) -> Result<CADevice, CFError> {
-        properties::get(
-            element::Master,
-            scope::Global,
-            selector::HardwarePropertyDefaultInputDevice,
-            kAudioObjectSystemObject,
-        )
+        unsafe {
+            properties::get(
+                element::Master,
+                scope::Global,
+                selector::HardwarePropertyDefaultInputDevice,
+                kAudioObjectSystemObject,
+            )
+        }
     }
 
     fn default_output_device(&self) -> Result<CADevice, CFError> {
-        properties::get(
-            element::Master,
-            scope::Global,
-            selector::HardwarePropertyDefaultOutputDevice,
-            kAudioObjectSystemObject,
-        )
+        unsafe {
+            properties::get(
+                element::Master,
+                scope::Global,
+                selector::HardwarePropertyDefaultOutputDevice,
+                kAudioObjectSystemObject,
+            )
+        }
     }
 
     fn start_session(
