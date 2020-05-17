@@ -4,19 +4,21 @@ use std::fmt;
 
 use coreaudio_sys::{
     kCFNumberIntType, kCFStringEncodingUTF8, kCFTypeArrayCallBacks, kCFTypeDictionaryKeyCallBacks,
-    kCFTypeDictionaryValueCallBacks, noErr, CFArrayAppendValue, CFArrayCreateMutable,
+    kCFTypeDictionaryValueCallBacks, noErr, CFArrayAppendValue, CFArrayCreateMutable, CFArrayRef,
     CFDataGetBytes, CFDataGetLength, CFDataRef, CFDictionaryAddValue, CFDictionaryCreateMutable,
-    CFMutableArrayRef, CFMutableDictionaryRef, CFNumberCreate, CFNumberRef, CFRange, CFRelease,
-    CFStringCreateExternalRepresentation, CFStringCreateWithBytes, CFStringCreateWithCString,
-    CFStringGetSystemEncoding, CFStringRef, OSStatus,
+    CFDictionaryRef, CFMutableArrayRef, CFMutableDictionaryRef, CFNumberCreate, CFNumberRef,
+    CFRange, CFRelease, CFRetain, CFStringCreateExternalRepresentation, CFStringCreateWithBytes,
+    CFStringCreateWithCString, CFStringGetSystemEncoding, CFStringRef, OSStatus,
 };
 
 #[derive(Debug)]
 pub struct CFError(OSStatus);
 
 pub struct CFString(CFStringRef);
+pub struct CFDictionary(CFDictionaryRef);
 pub struct CFMutableDictionary(CFMutableDictionaryRef);
 pub struct CFNumber(CFNumberRef);
+pub struct CFArray(CFArrayRef);
 pub struct CFMutableArray(CFMutableArrayRef);
 pub struct CFData(CFDataRef);
 
@@ -91,6 +93,20 @@ impl Drop for CFString {
     }
 }
 
+impl CFDictionary {
+    pub fn as_void_ptr(&self) -> *const c_void {
+        self.0 as *const c_void
+    }
+}
+
+impl Drop for CFDictionary {
+    fn drop(&mut self) {
+        unsafe {
+            CFRelease(self.0 as *const c_void);
+        }
+    }
+}
+
 impl CFMutableDictionary {
     pub fn new() -> Self {
         unsafe {
@@ -107,8 +123,8 @@ impl CFMutableDictionary {
         unsafe { CFDictionaryAddValue(self.0, key, value) }
     }
 
-    pub fn as_void_ptr(&self) -> *const c_void {
-        self.0 as *const c_void
+    pub fn clone_immutable(&self) -> CFDictionary {
+        unsafe { CFDictionary(CFRetain(self.0 as *const c_void) as CFDictionaryRef) }
     }
 }
 
@@ -144,6 +160,24 @@ impl Drop for CFNumber {
     }
 }
 
+impl CFArray {
+    pub fn new_retained(a: CFArrayRef) -> Self {
+        CFArray(a)
+    }
+
+    pub fn as_void_ptr(&self) -> *const c_void {
+        self.0 as *const c_void
+    }
+}
+
+impl Drop for CFArray {
+    fn drop(&mut self) {
+        unsafe {
+            CFRelease(self.0 as *const c_void);
+        }
+    }
+}
+
 impl CFMutableArray {
     pub fn new() -> Self {
         unsafe {
@@ -159,8 +193,8 @@ impl CFMutableArray {
         unsafe { CFArrayAppendValue(self.0, value) };
     }
 
-    pub fn as_void_ptr(&self) -> *const c_void {
-        self.0 as *const c_void
+    pub fn clone_immutable(&self) -> CFArray {
+        unsafe { CFArray(CFRetain(self.0 as *const c_void) as CFArrayRef) }
     }
 }
 

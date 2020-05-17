@@ -1,19 +1,12 @@
-use std::ffi::c_void;
 use std::fmt;
-use std::mem::MaybeUninit;
 
-use coreaudio_sys::{
-    kAudioDevicePropertyDeviceName, kAudioDevicePropertyDeviceUID, kAudioDevicePropertyScopeInput,
-    kAudioDevicePropertyScopeOutput, kAudioDevicePropertyStreamConfiguration,
-    kAudioObjectPropertyElementMaster, kAudioObjectPropertyScopeWildcard, AudioBufferList,
-    AudioDeviceID, AudioObjectGetPropertyData, AudioObjectGetPropertyDataSize,
-    AudioObjectPropertyAddress, CFStringRef,
-};
+use coreaudio_sys::AudioDeviceID;
 
 use crate::traits::Device;
 
 use super::backend::CABackend;
-use super::cf::{check_os_status, CFError, CFString};
+use super::cf::{CFError, CFString};
+use super::properties::{self, element, scope, selector};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CADevice(pub(crate) AudioDeviceID);
@@ -32,25 +25,12 @@ impl CADevice {
     }
 
     pub fn uid(&self) -> Result<CFString, CFError> {
-        let property_addr = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyDeviceUID,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        let mut input_device_uid = MaybeUninit::<CFStringRef>::uninit();
-        let mut size = std::mem::size_of::<CFStringRef>() as u32;
-        unsafe {
-            check_os_status(AudioObjectGetPropertyData(
-                self.0,
-                &property_addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                input_device_uid.as_mut_ptr() as *mut c_void,
-            ))?;
-            Ok(CFString::new_retained(input_device_uid.assume_init()))
-        }
+        properties::get(
+            element::Master,
+            scope::Output,
+            selector::DevicePropertyDeviceUID,
+            self.0,
+        )
     }
 }
 
@@ -67,68 +47,61 @@ impl fmt::Debug for CADevice {
 
 impl Device<CABackend> for CADevice {
     fn num_inputs(&self) -> Result<usize, CFError> {
-        let property_addr = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyStreamConfiguration,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        let mut size = 0;
-        unsafe {
-            check_os_status(AudioObjectGetPropertyDataSize(
-                self.0,
-                &property_addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-            ))?;
-        }
-
-        Ok(size as usize / std::mem::size_of::<AudioBufferList>())
+        let inputs = properties::get(
+            element::Master,
+            scope::Input,
+            selector::DevicePropertyStreamConfiguration,
+            self.0,
+        )?;
+        Ok(inputs.mNumberBuffers as usize)
     }
 
     fn num_outputs(&self) -> Result<usize, CFError> {
-        let property_addr = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyStreamConfiguration,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        let mut size = 0;
-        unsafe {
-            check_os_status(AudioObjectGetPropertyDataSize(
-                self.0,
-                &property_addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-            ))?;
-        }
-
-        Ok(size as usize / std::mem::size_of::<AudioBufferList>())
+        let outputs = properties::get(
+            element::Master,
+            scope::Output,
+            selector::DevicePropertyStreamConfiguration,
+            self.0,
+        )?;
+        Ok(outputs.mNumberBuffers as usize)
     }
 
     fn name(&self) -> Result<String, CFError> {
-        let property_addr = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyDeviceName,
-            mScope: kAudioObjectPropertyScopeWildcard,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
+        let cfstr = properties::get(
+            element::Master,
+            scope::Wildcard,
+            selector::ObjectPropertyName,
+            self.0,
+        )?;
 
-        let mut name_len = 64;
-        let mut name = String::with_capacity(name_len as usize);
-        unsafe {
-            check_os_status(AudioObjectGetPropertyData(
-                self.0,
-                &property_addr,
-                0,
-                std::ptr::null(),
-                &mut name_len,
-                name.as_mut_ptr() as *mut _,
-            ))?;
-            name.as_mut_vec().set_len(name_len as usize - 1);
-        }
+        Ok(cfstr.to_string())
+    }
 
-        Ok(name)
+    fn set_nominal_sample_rate(&mut self, sample_rate: f64) -> Result<(), CFError> {
+        properties::set(
+            element::Master,
+            scope::Wildcard,
+            selector::DevicePropertyNominalSampleRate,
+            self.0,
+            &sample_rate,
+        )
+    }
+
+    fn nominal_sample_rate(&self) -> Result<f64, CFError> {
+        properties::get(
+            element::Master,
+            scope::Wildcard,
+            selector::DevicePropertyNominalSampleRate,
+            self.0,
+        )
+    }
+
+    fn actual_sample_rate(&self) -> Result<f64, CFError> {
+        properties::get(
+            element::Master,
+            scope::Wildcard,
+            selector::DevicePropertyActualSampleRate,
+            self.0,
+        )
     }
 }

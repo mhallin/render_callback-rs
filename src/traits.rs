@@ -18,6 +18,7 @@ pub trait Backend: Sized {
 
     fn start_session(
         &self,
+        sample_rate: f64,
         input_device: Self::Device,
         output_device: Self::Device,
         callback: Box<RenderCallback<Self>>,
@@ -27,7 +28,7 @@ pub trait Backend: Sized {
 pub trait Session<B: Backend>: Sized {
     fn input_device(&self) -> Result<B::Device, B::Error>;
     fn output_device(&self) -> Result<B::Device, B::Error>;
-    
+
     fn set_input_device(&mut self, device: B::Device) -> Result<(), B::Error>;
     fn set_output_device(&mut self, device: B::Device) -> Result<(), B::Error>;
 }
@@ -36,6 +37,10 @@ pub trait Device<B: Backend> {
     fn num_inputs(&self) -> Result<usize, B::Error>;
     fn num_outputs(&self) -> Result<usize, B::Error>;
     fn name(&self) -> Result<String, B::Error>;
+
+    fn set_nominal_sample_rate(&mut self, sample_rate: f64) -> Result<(), B::Error>;
+    fn nominal_sample_rate(&self) -> Result<f64, B::Error>;
+    fn actual_sample_rate(&self) -> Result<f64, B::Error>;
 }
 
 pub trait AudioBuffers {

@@ -3,22 +3,16 @@ use std::fmt;
 use std::mem::MaybeUninit;
 
 use coreaudio_sys::{
-    kAudioAggregateDeviceIsPrivateKey, kAudioAggregateDeviceNameKey,
-    kAudioAggregateDevicePropertyFullSubDeviceList, kAudioAggregateDeviceUIDKey,
-    kAudioHardwarePropertyPlugInForBundleID, kAudioObjectPropertyElementMaster,
-    kAudioObjectPropertyScopeGlobal, kAudioObjectSystemObject, kAudioPlugInCreateAggregateDevice,
-    kAudioPlugInDestroyAggregateDevice, AudioDeviceID, AudioObjectGetPropertyData, AudioObjectID,
-    AudioObjectPropertyAddress, AudioObjectSetPropertyData, AudioValueTranslation,
-    CFMutableArrayRef, CFMutableDictionaryRef, CFStringRef,
+    kAudioAggregateDeviceIsPrivateKey, kAudioAggregateDeviceNameKey, kAudioAggregateDeviceUIDKey,
+    kAudioObjectSystemObject, AudioObjectID, AudioValueTranslation, CFStringRef,
 };
 
 use crate::traits::Backend;
 
 use super::backend::CABackend;
-use super::cf::{
-    check_os_status, CFError, CFMutableArray, CFMutableDictionary, CFNumber, CFString,
-};
+use super::cf::{CFError, CFMutableArray, CFMutableDictionary, CFNumber, CFString};
 use super::device::CADevice;
+use super::properties::{self, element, scope, selector};
 
 const AGGREGATE_DEVICE_UID: &str = "com.github.mhallin.Audioshop";
 
@@ -83,24 +77,13 @@ impl AggregateDevice {
             array
         };
 
-        let property_addr = AudioObjectPropertyAddress {
-            mSelector: kAudioAggregateDevicePropertyFullSubDeviceList,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        unsafe {
-            check_os_status(AudioObjectSetPropertyData(
-                self.device.id(),
-                &property_addr,
-                0,
-                std::ptr::null(),
-                std::mem::size_of::<CFMutableArrayRef>() as u32,
-                (&sub_device_array.as_void_ptr() as *const _) as *mut c_void,
-            ))?;
-        }
-
-        Ok(())
+        properties::set(
+            element::Master,
+            scope::Global,
+            selector::AggregateDevicePropertyFullSubDeviceList,
+            self.device.id(),
+            &sub_device_array.clone_immutable(),
+        )
     }
 }
 
@@ -116,49 +99,27 @@ fn get_audio_plugin_id() -> Result<AudioObjectID, CFError> {
         mOutputDataSize: std::mem::size_of::<AudioObjectID>() as u32,
     };
 
-    let property_addr = AudioObjectPropertyAddress {
-        mSelector: kAudioHardwarePropertyPlugInForBundleID,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
+    properties::translate(
+        element::Master,
+        scope::Global,
+        selector::HardwarePropertyPlugInForBundleID,
+        kAudioObjectSystemObject,
+        &mut translation,
+    )?;
 
-    let mut size = std::mem::size_of::<AudioValueTranslation>() as u32;
-
-    unsafe {
-        check_os_status(AudioObjectGetPropertyData(
-            kAudioObjectSystemObject,
-            &property_addr,
-            0,
-            std::ptr::null(),
-            &mut size,
-            &mut translation as *mut AudioValueTranslation as *mut c_void,
-        ))?;
-
-        Ok(object_id.assume_init())
-    }
+    unsafe { Ok(object_id.assume_init()) }
 }
 
 impl Drop for AggregateDevice {
     fn drop(&mut self) {
-        unsafe {
-            let property_addr = AudioObjectPropertyAddress {
-                mSelector: kAudioPlugInDestroyAggregateDevice,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMaster,
-            };
-
-            let mut size = std::mem::size_of::<AudioDeviceID>() as u32;
-            let mut device_id = self.device.id();
-            check_os_status(AudioObjectGetPropertyData(
-                self.plugin_id,
-                &property_addr,
-                0,
-                std::ptr::null(),
-                &mut size,
-                &mut device_id as *mut AudioDeviceID as *mut c_void,
-            ))
-            .expect("Could not destroy aggregate device");
-        }
+        properties::translate(
+            element::Master,
+            scope::Global,
+            selector::PlugInDestroyAggregateDevice,
+            self.plugin_id,
+            &mut self.device,
+        )
+        .expect("Could not destroy aggregate device");
     }
 }
 
@@ -202,30 +163,11 @@ fn create_aggregate_device(audio_plugin_id: AudioObjectID) -> Result<CADevice, C
         CFNumber::new(1).as_void_ptr(),
     );
 
-    let aggregate_audio_device_id = {
-        let property_addr = AudioObjectPropertyAddress {
-            mSelector: kAudioPlugInCreateAggregateDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        let mut aggregate_audio_device = MaybeUninit::<AudioDeviceID>::uninit();
-        let mut size = std::mem::size_of::<AudioDeviceID>() as u32;
-        let aggregate_dict_ptr = aggregate_dict.as_void_ptr();
-
-        unsafe {
-            check_os_status(AudioObjectGetPropertyData(
-                audio_plugin_id,
-                &property_addr,
-                std::mem::size_of::<CFMutableDictionaryRef>() as u32,
-                &aggregate_dict_ptr as *const _ as *mut c_void,
-                &mut size,
-                aggregate_audio_device.as_mut_ptr() as *mut c_void,
-            ))?;
-
-            aggregate_audio_device.assume_init()
-        }
-    };
-
-    Ok(CADevice::new(aggregate_audio_device_id))
+    properties::get_qualified(
+        element::Master,
+        scope::Global,
+        selector::PlugInCreateAggregateDevice,
+        &aggregate_dict.clone_immutable(),
+        audio_plugin_id,
+    )
 }

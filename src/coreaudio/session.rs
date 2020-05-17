@@ -6,7 +6,7 @@ use coreaudio_sys::{
     OSStatus,
 };
 
-use crate::traits::{AudioBuffers, Session};
+use crate::traits::{AudioBuffers, Device, Session};
 
 use super::aggregate_device::AggregateDevice;
 use super::backend::CABackend;
@@ -23,6 +23,7 @@ pub struct CASession {
 impl CASession {
     pub fn new_started(
         backend: &CABackend,
+        sample_rate: f64,
         input_device: CADevice,
         output_device: CADevice,
         callback: Box<RenderCallback>,
@@ -33,6 +34,8 @@ impl CASession {
             device: aggregate_device,
             callback: None,
         });
+
+        session.device.device().set_nominal_sample_rate(sample_rate)?;
 
         let mut proc_id = std::mem::MaybeUninit::<AudioDeviceIOProcID>::uninit();
         unsafe {
